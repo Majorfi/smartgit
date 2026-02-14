@@ -6,7 +6,13 @@ import (
 	"testing"
 )
 
+func isolateHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+}
+
 func TestLoadDefaults(t *testing.T) {
+	isolateHome(t)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
@@ -23,6 +29,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadFromFile(t *testing.T) {
+	isolateHome(t)
 	dir := t.TempDir()
 	sgDir := filepath.Join(dir, ".sg")
 	os.MkdirAll(sgDir, 0755)
@@ -50,6 +57,7 @@ func TestLoadFromFile(t *testing.T) {
 }
 
 func TestLoadLayerOverride(t *testing.T) {
+	isolateHome(t)
 	dir := t.TempDir()
 	sgDir := filepath.Join(dir, ".sg")
 	os.MkdirAll(sgDir, 0755)
