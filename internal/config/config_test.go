@@ -14,8 +14,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DiffMaxLines != 2000 {
 		t.Errorf("expected DiffMaxLines 2000, got %d", cfg.DiffMaxLines)
 	}
-	if cfg.BaseBranch != "main" {
-		t.Errorf("expected BaseBranch 'main', got %q", cfg.BaseBranch)
+	if cfg.BaseBranch != "" {
+		t.Errorf("expected BaseBranch '', got %q", cfg.BaseBranch)
 	}
 	if cfg.CommitStyle != "conventional" {
 		t.Errorf("expected CommitStyle 'conventional', got %q", cfg.CommitStyle)
