@@ -254,7 +254,7 @@ Three layers, merged field-by-field (later overrides earlier):
 
 | Layer | Location | Contains | Committed? |
 |---|---|---|---|
-| Global (user) | `~/.config/sg/config.json` | API key, preferred model, defaults | No |
+| Global (user) | `~/.config/sg/config.json` | Defaults (diffMaxLines) | No |
 | Project (team) | `.sg/config.json` | Branch rules, trailer requirements, PR template, commit style | Yes |
 | Project (personal) | `.sg/config.local.json` | Personal overrides | No (gitignored) |
 
@@ -273,12 +273,11 @@ Example project config:
 Example global config:
 ```json
 {
-  "apiKey": "sk-ant-...",
-  "model": "claude-sonnet-4-5-20250929",
-  "diffMaxLines": 2000,
-  "timeout": 15000
+  "diffMaxLines": 2000
 }
 ```
+
+Note: AI auth and model selection are handled by the Claude Code CLI (`claude`). No API key configuration needed in `sg`.
 
 Full config key reference:
 
@@ -291,10 +290,7 @@ Full config key reference:
 | `baseBranch` | Project | Default base branch for PR/diff |
 | `prTemplate` | Project | PR markdown template name |
 | `docsPaths` | Project | Paths that count as documentation (for `Docs-Updated` trailer) |
-| `apiKey` | Global | AI provider API key |
-| `model` | Global | AI model to use |
 | `diffMaxLines` | Global | Max diff lines sent to AI |
-| `timeout` | Global | AI call timeout in ms |
 
 ---
 
@@ -353,7 +349,7 @@ For every call, we provide machine-readable git data:
 | Component | Choice | Rationale |
 |---|---|---|
 | Language | Go | Single binary, no runtime dependency, fast startup |
-| AI Provider | Anthropic API (`github.com/anthropics/anthropic-sdk-go`) | Official SDK, structured output, code understanding |
+| AI Provider | Claude Code CLI (`claude --print`) | Leverages existing auth, structured JSON output via `--json-schema` |
 | Git interaction | `os/exec` shelling out to `git` CLI | Always available, no library needed |
 | CLI framework | `github.com/spf13/cobra` | De facto standard (kubectl, docker, gh), subcommand support |
 | Distribution | Single binary via `go install` or GitHub releases | Zero-dependency install |

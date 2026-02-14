@@ -7,10 +7,7 @@ import (
 )
 
 type Config struct {
-	APIKey           string   `json:"apiKey,omitempty"`
-	Model            string   `json:"model,omitempty"`
 	DiffMaxLines     int      `json:"diffMaxLines,omitempty"`
-	Timeout          int      `json:"timeout,omitempty"`
 	CommitStyle      string   `json:"commitStyle,omitempty"`
 	RequiredTrailers []string `json:"requiredTrailers,omitempty"`
 	OptionalTrailers []string `json:"optionalTrailers,omitempty"`
@@ -36,9 +33,7 @@ func Load() (Config, error) {
 
 func defaults() Config {
 	return Config{
-		Model:        "claude-sonnet-4-5-20250929",
 		DiffMaxLines: 2000,
-		Timeout:      15000,
 		CommitStyle:  "conventional",
 		BaseBranch:   "main",
 	}
@@ -63,17 +58,8 @@ func mergeFromFile(cfg *Config, path string) {
 		return
 	}
 
-	if layer.APIKey != "" {
-		cfg.APIKey = layer.APIKey
-	}
-	if layer.Model != "" {
-		cfg.Model = layer.Model
-	}
 	if layer.DiffMaxLines != 0 {
 		cfg.DiffMaxLines = layer.DiffMaxLines
-	}
-	if layer.Timeout != 0 {
-		cfg.Timeout = layer.Timeout
 	}
 	if layer.CommitStyle != "" {
 		cfg.CommitStyle = layer.CommitStyle

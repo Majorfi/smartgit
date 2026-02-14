@@ -26,8 +26,44 @@ func Diff(cached bool) (string, error) {
 	return Run(args...)
 }
 
+func DiffNameStatus(cached bool) (string, error) {
+	args := []string{"diff", "--name-status", "-M", "-C"}
+	if cached {
+		args = append(args, "--cached")
+	}
+	return Run(args...)
+}
+
+func DiffStat(cached bool) (string, error) {
+	args := []string{"diff", "--stat"}
+	if cached {
+		args = append(args, "--cached")
+	}
+	return Run(args...)
+}
+
 func Status() (string, error) {
 	return Run("status", "--porcelain=v2", "-z")
+}
+
+func StatusShort() (string, error) {
+	return Run("status", "--short")
+}
+
+func HasStagedChanges() (bool, error) {
+	_, err := Run("diff", "--cached", "--quiet")
+	if err != nil {
+		return true, nil
+	}
+	return false, nil
+}
+
+func HasUnstagedChanges() (bool, error) {
+	_, err := Run("diff", "--quiet")
+	if err != nil {
+		return true, nil
+	}
+	return false, nil
 }
 
 func BranchName() (string, error) {
@@ -47,5 +83,31 @@ func BranchDescription() (string, error) {
 }
 
 func RecentCommits(n int) (string, error) {
-	return Run("log", fmt.Sprintf("--oneline"), fmt.Sprintf("-%d", n))
+	return Run("log", "--oneline", fmt.Sprintf("-%d", n))
+}
+
+func StageFiles(files []string) error {
+	args := append([]string{"add", "--"}, files...)
+	_, err := Run(args...)
+	return err
+}
+
+func AddAll() error {
+	_, err := Run("add", "-A")
+	return err
+}
+
+func Commit(subject string, body string, trailers map[string]string) error {
+	msg := subject
+	if body != "" {
+		msg = subject + "\n\n" + body
+	}
+
+	args := []string{"commit", "-m", msg}
+	for key, val := range trailers {
+		args = append(args, "--trailer", fmt.Sprintf("%s: %s", key, val))
+	}
+
+	_, err := Run(args...)
+	return err
 }

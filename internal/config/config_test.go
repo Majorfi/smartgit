@@ -11,14 +11,14 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	if cfg.Model != "claude-sonnet-4-5-20250929" {
-		t.Errorf("expected default model, got %q", cfg.Model)
-	}
 	if cfg.DiffMaxLines != 2000 {
 		t.Errorf("expected DiffMaxLines 2000, got %d", cfg.DiffMaxLines)
 	}
 	if cfg.BaseBranch != "main" {
 		t.Errorf("expected BaseBranch 'main', got %q", cfg.BaseBranch)
+	}
+	if cfg.CommitStyle != "conventional" {
+		t.Errorf("expected CommitStyle 'conventional', got %q", cfg.CommitStyle)
 	}
 }
 
@@ -44,8 +44,8 @@ func TestLoadFromFile(t *testing.T) {
 	if cfg.BaseBranch != "develop" {
 		t.Errorf("expected baseBranch 'develop', got %q", cfg.BaseBranch)
 	}
-	if cfg.Model != "claude-sonnet-4-5-20250929" {
-		t.Errorf("default model should be preserved, got %q", cfg.Model)
+	if cfg.DiffMaxLines != 2000 {
+		t.Errorf("default DiffMaxLines should be preserved, got %d", cfg.DiffMaxLines)
 	}
 }
 
