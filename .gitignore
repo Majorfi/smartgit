@@ -1,0 +1,20 @@
+# Binary
+sg
+sg.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# SmartGit local config
+.sg/config.local.json
