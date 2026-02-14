@@ -44,7 +44,7 @@ func runInstall(dir string) error {
 	}
 
 	dstPath := filepath.Join(dir, "sg")
-	if srcPath == dstPath {
+	if isSameFile(srcPath, dstPath) {
 		fmt.Printf("sg is already installed at %s\n", dstPath)
 		return nil
 	}
@@ -60,26 +60,61 @@ func runInstall(dir string) error {
 	return nil
 }
 
+func isSameFile(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return os.SameFile(infoA, infoB)
+}
+
 func findTargetDir() string {
 	home, _ := os.UserHomeDir()
-	candidates := []string{
-		"/usr/local/bin",
-		filepath.Join(home, ".local", "bin"),
+	preferred := map[string]int{
+		"/usr/local/bin":                    0,
+		"/opt/homebrew/bin":                 1,
+		filepath.Join(home, ".local", "bin"): 2,
 	}
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
-		candidates = append(candidates, filepath.Join(gopath, "bin"))
+		preferred[filepath.Join(gopath, "bin")] = 3
 	} else if home != "" {
-		candidates = append(candidates, filepath.Join(home, "go", "bin"))
+		preferred[filepath.Join(home, "go", "bin")] = 3
 	}
 
-	for _, c := range candidates {
-		info, err := os.Stat(c)
-		if err == nil && info.IsDir() && isInPATH(c) {
-			return c
+	bestDir := ""
+	bestPriority := len(preferred) + 1
+
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		if !isWritableDir(dir) {
+			continue
+		}
+		if p, ok := preferred[dir]; ok && p < bestPriority {
+			bestDir = dir
+			bestPriority = p
+			continue
+		}
+		if bestDir == "" {
+			bestDir = dir
 		}
 	}
-	return ""
+	return bestDir
+}
+
+func isWritableDir(dir string) bool {
+	tmp, err := os.CreateTemp(dir, ".sg-probe-*")
+	if err != nil {
+		return false
+	}
+	name := tmp.Name()
+	tmp.Close()
+	os.Remove(name)
+	return true
 }
 
 func isInPATH(dir string) bool {
@@ -102,17 +137,33 @@ func copyBinary(src, dst string) error {
 		return fmt.Errorf("create directory: %w", err)
 	}
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".sg-install-*")
 	if err != nil {
 		if strings.Contains(err.Error(), "permission denied") {
 			return fmt.Errorf("permission denied — try: sudo sg install --dir %s", filepath.Dir(dst))
 		}
-		return fmt.Errorf("create target: %w", err)
+		return fmt.Errorf("create temp file: %w", err)
 	}
-	defer out.Close()
+	tmpPath := tmp.Name()
 
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err := io.Copy(tmp, in); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("copy binary: %w", err)
+	}
+	if err := tmp.Chmod(0755); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("set permissions: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, dst); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("move binary into place: %w", err)
 	}
 	return nil
 }
