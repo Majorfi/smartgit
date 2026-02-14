@@ -24,7 +24,13 @@ and commit history since the fork point.`,
 }
 
 func runDoctor() error {
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Warning: config load: %v\n\n", err)
+	}
+	if cfg.BaseBranch == "" {
+		cfg.BaseBranch = git.DefaultBranch()
+	}
 
 	mergeBase, err := git.MergeBase(cfg.BaseBranch)
 	if err != nil {
@@ -32,31 +38,40 @@ func runDoctor() error {
 	}
 
 	issues := 0
+	totalChecks := 0
 
 	fmt.Println("sg doctor — traceability check")
 	fmt.Println()
 
 	desc, _ := git.BranchDescription()
+	totalChecks++
 	if !printCheck("Branch has description", desc != "") {
 		issues++
 	}
 
-	allTrailers := checkAllTrailers(mergeBase)
-	if !printCheck("All commits have Change-Type trailer", allTrailers) {
-		issues++
-	}
-
-	hasTicket := checkTicketPresent(mergeBase)
-	if !printCheck("Ticket trailer present", hasTicket) {
-		issues++
-	}
-
-	if !printCheck("Session plan exists", session.Exists()) {
-		issues++
-	}
-
 	log, _ := git.LogSince(mergeBase)
-	if !printCheck("Has commits since fork", log != "") {
+	hasCommits := log != ""
+	totalChecks++
+	if !printCheck("Has commits since fork", hasCommits) {
+		issues++
+	}
+
+	if hasCommits {
+		totalChecks++
+		if !printCheck("All commits have Change-Type trailer", checkAllTrailers(mergeBase)) {
+			issues++
+		}
+		totalChecks++
+		if !printCheck("Ticket trailer present", checkTicketPresent(mergeBase)) {
+			issues++
+		}
+	} else {
+		fmt.Println("  [-] All commits have Change-Type trailer (skipped, no commits)")
+		fmt.Println("  [-] Ticket trailer present (skipped, no commits)")
+	}
+
+	totalChecks++
+	if !printCheck("Session plan exists", session.Exists()) {
 		issues++
 	}
 
@@ -64,58 +79,36 @@ func runDoctor() error {
 	if issues == 0 {
 		fmt.Println("All checks passed.")
 	} else {
-		fmt.Printf("%d/%d issues found.\n", issues, 5)
+		fmt.Printf("%d/%d issues found.\n", issues, totalChecks)
 	}
 
 	return nil
 }
 
 func checkAllTrailers(mergeBase string) bool {
-	log, err := git.LogWithTrailers(mergeBase)
-	if err != nil || log == "" {
+	values, err := git.TrailerValues(mergeBase, "Change-Type")
+	if err != nil || len(values) == 0 {
 		return false
 	}
-
-	lines := strings.Split(log, "\n")
-	for i := 0; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" {
-			continue
-		}
-		if !strings.Contains(line, "Change-Type") {
-			hasCommitOnPrev := i > 0 && isCommitLine(lines[i-1])
-			if isCommitLine(line) {
-				if i+1 >= len(lines) || strings.TrimSpace(lines[i+1]) == "" {
-					return false
-				}
-			}
-			if hasCommitOnPrev {
-				return false
-			}
+	for _, v := range values {
+		if strings.TrimSpace(v) == "" {
+			return false
 		}
 	}
 	return true
 }
 
 func checkTicketPresent(mergeBase string) bool {
-	log, err := git.LogWithTrailers(mergeBase)
-	if err != nil || log == "" {
+	values, err := git.TrailerValues(mergeBase, "Ticket")
+	if err != nil || len(values) == 0 {
 		return false
 	}
-	return strings.Contains(log, "Ticket")
-}
-
-func isCommitLine(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	if len(trimmed) < 8 {
-		return false
-	}
-	for _, c := range trimmed[:7] {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			return false
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return true
 		}
 	}
-	return trimmed[7] == ' '
+	return false
 }
 
 func printCheck(label string, ok bool) bool {
