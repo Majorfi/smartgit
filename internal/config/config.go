@@ -10,7 +10,18 @@ import (
 )
 
 type Config struct {
-	DiffMaxLines     int      `json:"diffMaxLines,omitempty"`
+	DiffMaxLines     int      `json:"diffMaxLines"`
+	CommitStyle      string   `json:"commitStyle,omitempty"`
+	RequiredTrailers []string `json:"requiredTrailers,omitempty"`
+	OptionalTrailers []string `json:"optionalTrailers,omitempty"`
+	BranchPrefixes   []string `json:"branchPrefixes,omitempty"`
+	BaseBranch       string   `json:"baseBranch,omitempty"`
+	PRTemplate       string   `json:"prTemplate,omitempty"`
+	DocsPaths        []string `json:"docsPaths,omitempty"`
+}
+
+type configLayer struct {
+	DiffMaxLines     *int     `json:"diffMaxLines,omitempty"`
 	CommitStyle      string   `json:"commitStyle,omitempty"`
 	RequiredTrailers []string `json:"requiredTrailers,omitempty"`
 	OptionalTrailers []string `json:"optionalTrailers,omitempty"`
@@ -71,13 +82,13 @@ func mergeFromFile(cfg *Config, path string) error {
 		return fmt.Errorf("read error: %w", err)
 	}
 
-	var layer Config
+	var layer configLayer
 	if err := json.Unmarshal(data, &layer); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
 
-	if layer.DiffMaxLines != 0 {
-		cfg.DiffMaxLines = layer.DiffMaxLines
+	if layer.DiffMaxLines != nil {
+		cfg.DiffMaxLines = *layer.DiffMaxLines
 	}
 	if layer.CommitStyle != "" {
 		cfg.CommitStyle = layer.CommitStyle
