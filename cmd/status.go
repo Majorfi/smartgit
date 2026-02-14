@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Majorfi/smartgit/internal/config"
 	"github.com/Majorfi/smartgit/internal/git"
@@ -23,7 +24,13 @@ changes, remaining plan items, and readiness flags.`,
 }
 
 func runStatus() error {
-	cfg, _ := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Warning: config load: %v\n\n", err)
+	}
+	if cfg.BaseBranch == "" {
+		cfg.BaseBranch = git.DefaultBranch()
+	}
 
 	branch, err := git.BranchName()
 	if err != nil {
@@ -116,12 +123,20 @@ func printReadiness(baseBranch string) {
 
 	mergeBase, err := git.MergeBase(baseBranch)
 	if err != nil {
-		printFlag("Commits with trailers", false)
+		printFlag("Has commits", false)
+		printFlag("All commits have Change-Type", false)
 		return
 	}
 
 	log, _ := git.LogSince(mergeBase)
-	printFlag("Has commits", log != "")
+	hasCommits := log != ""
+	printFlag("Has commits", hasCommits)
+
+	if hasCommits {
+		printFlag("All commits have Change-Type", checkTrailersPresent(mergeBase))
+	} else {
+		printFlag("All commits have Change-Type", false)
+	}
 }
 
 func printFlag(label string, ok bool) {
@@ -130,4 +145,17 @@ func printFlag(label string, ok bool) {
 		marker = " "
 	}
 	fmt.Printf("  [%s] %s\n", marker, label)
+}
+
+func checkTrailersPresent(mergeBase string) bool {
+	values, err := git.TrailerValues(mergeBase, "Change-Type")
+	if err != nil || len(values) == 0 {
+		return false
+	}
+	for _, v := range values {
+		if strings.TrimSpace(v) == "" {
+			return false
+		}
+	}
+	return true
 }
