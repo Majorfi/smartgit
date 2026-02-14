@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Majorfi/smartgit/internal/ai"
+	"github.com/Majorfi/smartgit/internal/config"
 	"github.com/Majorfi/smartgit/internal/git"
 	"github.com/spf13/cobra"
 )
@@ -63,6 +64,12 @@ func runCommit(all bool, dryRun bool, noSplit bool) error {
 		return fmt.Errorf("failed to get diff: %w", err)
 	}
 
+	cfg, cfgErr := config.Load()
+	if cfgErr != nil {
+		fmt.Printf("Warning: config load: %v\n\n", cfgErr)
+	}
+	diff = truncateDiff(diff, cfg.DiffMaxLines)
+
 	context := gatherContext()
 
 	fmt.Println("Generating commit message(s)...")
@@ -80,6 +87,18 @@ func runCommit(all bool, dryRun bool, noSplit bool) error {
 
 	if noSplit && len(suggestion.Groups) > 1 {
 		suggestion = mergeGroups(suggestion)
+	}
+
+	stashed := false
+	if !dryRun {
+		hasUnstagedNow, _ := git.HasUnstagedChanges()
+		if hasUnstagedNow {
+			created, err := git.StashKeepIndex()
+			if err != nil {
+				return fmt.Errorf("failed to stash unstaged changes: %w", err)
+			}
+			stashed = created
+		}
 	}
 
 	committed := 0
@@ -113,6 +132,13 @@ func runCommit(all bool, dryRun bool, noSplit bool) error {
 	}
 
 done:
+	if stashed {
+		if err := git.StashPop(); err != nil {
+			fmt.Printf("Warning: failed to restore unstaged changes: %v\n", err)
+			fmt.Println("Your changes are saved in git stash.")
+		}
+	}
+
 	if dryRun {
 		fmt.Printf("Dry run complete. %d group(s) previewed.\n", len(suggestion.Groups))
 	} else {
@@ -188,8 +214,8 @@ func promptAction() string {
 }
 
 func commitGroup(group ai.CommitGroup) error {
-	if err := git.StageFiles(group.Files); err != nil {
-		return fmt.Errorf("failed to stage files: %w", err)
+	if len(group.Files) == 0 {
+		return fmt.Errorf("group has no files")
 	}
 
 	trailers := map[string]string{
@@ -199,7 +225,7 @@ func commitGroup(group ai.CommitGroup) error {
 		trailers["Scope"] = group.Scope
 	}
 
-	return git.Commit(group.Subject, group.Body, trailers)
+	return git.Commit(group.Subject, group.Body, trailers, group.Files)
 }
 
 func mergeGroups(suggestion *ai.CommitSuggestion) *ai.CommitSuggestion {
@@ -221,4 +247,16 @@ func mergeGroups(suggestion *ai.CommitSuggestion) *ai.CommitSuggestion {
 	}
 
 	return &ai.CommitSuggestion{Groups: []ai.CommitGroup{merged}}
+}
+
+func truncateDiff(diff string, maxLines int) string {
+	if maxLines <= 0 {
+		return diff
+	}
+	lines := strings.Split(diff, "\n")
+	if len(lines) <= maxLines {
+		return diff
+	}
+	fmt.Printf("Warning: diff truncated from %d to %d lines.\n", len(lines), maxLines)
+	return strings.Join(lines[:maxLines], "\n")
 }
