@@ -21,6 +21,9 @@ func main() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("sg version %s\n", version))
 
 	rootCmd.AddCommand(cmd.NewCommitCmd())
+	rootCmd.AddCommand(cmd.NewStartCmd())
+	rootCmd.AddCommand(cmd.NewStatusCmd())
+	rootCmd.AddCommand(cmd.NewInitCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

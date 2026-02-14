@@ -16,5 +16,6 @@ Thumbs.db
 # Go
 vendor/
 
-# SmartGit local config
+# SmartGit local/personal files
 .sg/config.local.json
+.sg/session.json

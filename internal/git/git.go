@@ -97,6 +97,38 @@ func AddAll() error {
 	return err
 }
 
+func CheckRefFormat(name string) error {
+	_, err := Run("check-ref-format", "--branch", name)
+	return err
+}
+
+func SwitchCreate(branch string) error {
+	_, err := Run("switch", "-c", branch)
+	return err
+}
+
+func SetBranchDescription(branch string, description string) error {
+	_, err := Run("config", fmt.Sprintf("branch.%s.description", branch), description)
+	return err
+}
+
+func MergeBase(base string) (string, error) {
+	return Run("merge-base", "HEAD", base)
+}
+
+func LogSince(since string) (string, error) {
+	return Run("log", "--oneline", fmt.Sprintf("%s..HEAD", since))
+}
+
+func LogWithTrailers(since string) (string, error) {
+	return Run("log", "--format=%h %s%n%(trailers:key=Change-Type,key=Scope,key=Ticket,separator=%x2C )", fmt.Sprintf("%s..HEAD", since))
+}
+
+func SetConfig(key string, value string) error {
+	_, err := Run("config", key, value)
+	return err
+}
+
 func Commit(subject string, body string, trailers map[string]string) error {
 	msg := subject
 	if body != "" {

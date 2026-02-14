@@ -19,6 +19,12 @@ type CommitSuggestion struct {
 	Groups []CommitGroup `json:"groups"`
 }
 
+type BranchInfo struct {
+	BranchName  string   `json:"branchName"`
+	Description string   `json:"description"`
+	Plan        []string `json:"plan"`
+}
+
 var commitSchema = `{
 	"type": "object",
 	"properties": {
@@ -40,26 +46,26 @@ var commitSchema = `{
 	"required": ["groups"]
 }`
 
-func claudePath() (string, error) {
-	path, err := exec.LookPath("claude")
-	if err != nil {
-		return "", fmt.Errorf("claude CLI not found in PATH: %w", err)
-	}
-	return path, nil
-}
+var branchSchema = `{
+	"type": "object",
+	"properties": {
+		"branchName": { "type": "string" },
+		"description": { "type": "string" },
+		"plan": { "type": "array", "items": { "type": "string" } }
+	},
+	"required": ["branchName", "description", "plan"]
+}`
 
-func GenerateCommitMessage(diff string, context string) (*CommitSuggestion, error) {
-	claudeBin, err := claudePath()
+func callClaude[T any](prompt string, schema string) (*T, error) {
+	claudeBin, err := exec.LookPath("claude")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("claude CLI not found in PATH: %w", err)
 	}
-
-	prompt := buildCommitPrompt(diff, context)
 
 	cmd := exec.Command(claudeBin,
 		"--print",
 		"--output-format", "json",
-		"--json-schema", commitSchema,
+		"--json-schema", schema,
 		"--model", "haiku",
 		"--no-session-persistence",
 		prompt,
@@ -74,9 +80,9 @@ func GenerateCommitMessage(diff string, context string) (*CommitSuggestion, erro
 	}
 
 	var response struct {
-		StructuredOutput *CommitSuggestion `json:"structured_output"`
-		IsError          bool              `json:"is_error"`
-		Result           string            `json:"result"`
+		StructuredOutput *T   `json:"structured_output"`
+		IsError          bool `json:"is_error"`
+		Result           string `json:"result"`
 	}
 	if err := json.Unmarshal(out, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse claude response: %w", err)
@@ -89,6 +95,16 @@ func GenerateCommitMessage(diff string, context string) (*CommitSuggestion, erro
 	}
 
 	return response.StructuredOutput, nil
+}
+
+func GenerateCommitMessage(diff string, context string) (*CommitSuggestion, error) {
+	prompt := buildCommitPrompt(diff, context)
+	return callClaude[CommitSuggestion](prompt, commitSchema)
+}
+
+func GenerateBranchInfo(description string) (*BranchInfo, error) {
+	prompt := buildBranchPrompt(description)
+	return callClaude[BranchInfo](prompt, branchSchema)
 }
 
 func buildCommitPrompt(diff string, context string) string {
@@ -110,6 +126,22 @@ func buildCommitPrompt(diff string, context string) string {
 	b.WriteString("Git diff:\n```\n")
 	b.WriteString(diff)
 	b.WriteString("\n```")
+
+	return b.String()
+}
+
+func buildBranchPrompt(description string) string {
+	var b strings.Builder
+	b.WriteString("You are a git branch name generator. Given a task description, produce a branch name, description, and plan.\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Branch name must use format: prefix/short-kebab-description\n")
+	b.WriteString("- Valid prefixes: feat, fix, chore, refactor, docs, test\n")
+	b.WriteString("- Strip conversational fluff from the input (e.g. 'Can you please...' → imperative form)\n")
+	b.WriteString("- Description should explain what the branch is for and any acceptance criteria\n")
+	b.WriteString("- Plan should be a list of concrete implementation steps\n")
+	b.WriteString("- Keep branch names short (under 50 chars total)\n\n")
+	b.WriteString("Task description:\n")
+	b.WriteString(description)
 
 	return b.String()
 }
