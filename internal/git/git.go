@@ -201,6 +201,24 @@ func SetConfig(key string, value string) error {
 	return err
 }
 
+func SoftReset(ref string) error {
+	_, err := Run("reset", "--soft", ref)
+	return err
+}
+
+func ResetHead() error {
+	_, err := Run("reset", "HEAD", "--", ".")
+	return err
+}
+
+func DiffTreeNameStatus(ref string) (string, error) {
+	return Run("diff-tree", "--no-commit-id", "--name-status", "-r", ref)
+}
+
+func DiffStatOfCommit(ref string) (string, error) {
+	return Run("diff", "--stat", ref+"~1.."+ref)
+}
+
 func Commit(subject string, body string, trailers map[string]string, files []string) error {
 	msg := subject
 	if body != "" {
