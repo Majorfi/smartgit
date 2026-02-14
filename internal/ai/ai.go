@@ -1,10 +1,12 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type CommitGroup struct {
@@ -86,7 +88,10 @@ func callClaude[T any](prompt string, schema string) (*T, error) {
 		return nil, fmt.Errorf("claude CLI not found in PATH: %w", err)
 	}
 
-	cmd := exec.Command(claudeBin,
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, claudeBin,
 		"--print",
 		"--output-format", "json",
 		"--json-schema", schema,
