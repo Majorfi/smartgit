@@ -51,19 +51,24 @@ func StatusShort() (string, error) {
 }
 
 func HasStagedChanges() (bool, error) {
-	_, err := Run("diff", "--cached", "--quiet")
-	if err != nil {
-		return true, nil
-	}
-	return false, nil
+	return hasDiffChanges("--cached")
 }
 
 func HasUnstagedChanges() (bool, error) {
-	_, err := Run("diff", "--quiet")
-	if err != nil {
+	return hasDiffChanges()
+}
+
+func hasDiffChanges(extraArgs ...string) (bool, error) {
+	args := append([]string{"diff", "--quiet"}, extraArgs...)
+	cmd := exec.Command("git", args...)
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 		return true, nil
 	}
-	return false, nil
+	return false, err
 }
 
 func BranchName() (string, error) {
@@ -84,6 +89,21 @@ func BranchDescription() (string, error) {
 
 func RecentCommits(n int) (string, error) {
 	return Run("log", "--oneline", fmt.Sprintf("-%d", n))
+}
+
+func StashKeepIndex() (bool, error) {
+	before, _ := Run("rev-parse", "refs/stash")
+	_, err := Run("stash", "push", "--keep-index", "--quiet")
+	if err != nil {
+		return false, err
+	}
+	after, _ := Run("rev-parse", "refs/stash")
+	return before != after, nil
+}
+
+func StashPop() error {
+	_, err := Run("stash", "pop", "--quiet")
+	return err
 }
 
 func StageFiles(files []string) error {
@@ -112,6 +132,22 @@ func SetBranchDescription(branch string, description string) error {
 	return err
 }
 
+func DefaultBranch() string {
+	ref, err := Run("symbolic-ref", "refs/remotes/origin/HEAD")
+	if err == nil {
+		parts := strings.SplitN(ref, "/", 4)
+		if len(parts) == 4 {
+			return parts[3]
+		}
+	}
+	for _, candidate := range []string{"main", "master"} {
+		if _, err := Run("rev-parse", "--verify", candidate); err == nil {
+			return candidate
+		}
+	}
+	return "main"
+}
+
 func MergeBase(base string) (string, error) {
 	return Run("merge-base", "HEAD", base)
 }
@@ -122,6 +158,30 @@ func LogSince(since string) (string, error) {
 
 func LogWithTrailers(since string) (string, error) {
 	return Run("log", "--format=%h %s%n%(trailers:key=Change-Type,key=Scope,key=Ticket,separator=%x2C )", fmt.Sprintf("%s..HEAD", since))
+}
+
+func TrailerValues(since string, trailerKey string) ([]string, error) {
+	cmd := exec.Command("git", "log", "--format=%x00%(trailers:key="+trailerKey+",valueonly,separator=%x01)", fmt.Sprintf("%s..HEAD", since))
+	raw, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git log trailers: %w", err)
+	}
+	out := strings.TrimRight(string(raw), "\n")
+	if out == "" {
+		return nil, nil
+	}
+	parts := strings.Split(out, "\x00")
+	if len(parts) > 0 && parts[0] == "" {
+		parts = parts[1:]
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	values := make([]string, len(parts))
+	for i, p := range parts {
+		values[i] = strings.TrimSpace(p)
+	}
+	return values, nil
 }
 
 func DiffStatRange(base string) (string, error) {
@@ -141,7 +201,7 @@ func SetConfig(key string, value string) error {
 	return err
 }
 
-func Commit(subject string, body string, trailers map[string]string) error {
+func Commit(subject string, body string, trailers map[string]string, files []string) error {
 	msg := subject
 	if body != "" {
 		msg = subject + "\n\n" + body
@@ -150,6 +210,10 @@ func Commit(subject string, body string, trailers map[string]string) error {
 	args := []string{"commit", "-m", msg}
 	for key, val := range trailers {
 		args = append(args, "--trailer", fmt.Sprintf("%s: %s", key, val))
+	}
+	if len(files) > 0 {
+		args = append(args, "--")
+		args = append(args, files...)
 	}
 
 	_, err := Run(args...)
