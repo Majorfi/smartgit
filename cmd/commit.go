@@ -171,7 +171,7 @@ func printGroup(group ai.CommitGroup) {
 func promptAction() string {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("  [y]es / [s]kip / [q]uit: ")
+		fmt.Print("  [Y]es / [s]kip / [q]uit: ")
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(strings.ToLower(input))
 		switch input {
