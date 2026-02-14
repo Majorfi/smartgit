@@ -40,8 +40,14 @@ generate a structured PR description. Then creates the PR via gh CLI.`,
 
 func runPR(base string, dryRun bool, local bool, titleOverride string) error {
 	if base == "" {
-		cfg, _ := config.Load()
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Printf("Warning: config load: %v\n\n", err)
+		}
 		base = cfg.BaseBranch
+		if base == "" {
+			base = git.DefaultBranch()
+		}
 	}
 
 	mergeBase, err := git.MergeBase(base)
@@ -50,15 +56,18 @@ func runPR(base string, dryRun bool, local bool, titleOverride string) error {
 	}
 
 	branchDesc, _ := git.BranchDescription()
-	commitLog, _ := git.LogWithTrailers(mergeBase)
-	diffStat, _ := git.DiffStatRange(mergeBase)
-	dirStat, _ := git.DiffDirstat(mergeBase)
-	shortlog, _ := git.Shortlog(mergeBase)
-
+	commitLog, err := git.LogWithTrailers(mergeBase)
+	if err != nil {
+		return fmt.Errorf("failed to read commit log: %w", err)
+	}
 	if commitLog == "" {
 		fmt.Println("No commits found since fork point. Nothing to create a PR for.")
 		return nil
 	}
+
+	diffStat, _ := git.DiffStatRange(mergeBase)
+	dirStat, _ := git.DiffDirstat(mergeBase)
+	shortlog, _ := git.Shortlog(mergeBase)
 
 	fmt.Println("Generating PR description...")
 	fmt.Println()
