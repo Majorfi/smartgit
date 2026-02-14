@@ -58,6 +58,14 @@ func HasUnstagedChanges() (bool, error) {
 	return hasDiffChanges()
 }
 
+func HasWorkingTreeChanges() (bool, error) {
+	out, err := Run("status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
 func hasDiffChanges(extraArgs ...string) (bool, error) {
 	args := append([]string{"diff", "--quiet"}, extraArgs...)
 	cmd := exec.Command("git", args...)
@@ -206,17 +214,29 @@ func SoftReset(ref string) error {
 	return err
 }
 
+func CommitHasParent(ref string) (bool, error) {
+	cmd := exec.Command("git", "rev-parse", "--verify", ref+"^")
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 128 {
+		return false, nil
+	}
+	return false, err
+}
+
 func ResetHead() error {
 	_, err := Run("reset", "HEAD", "--", ".")
 	return err
 }
 
 func DiffTreeNameStatus(ref string) (string, error) {
-	return Run("diff-tree", "--no-commit-id", "--name-status", "-r", ref)
+	return Run("diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-M", "-C", ref)
 }
 
 func DiffStatOfCommit(ref string) (string, error) {
-	return Run("diff", "--stat", ref+"~1.."+ref)
+	return Run("show", "--format=", "--stat", ref)
 }
 
 func Commit(subject string, body string, trailers map[string]string, files []string) error {

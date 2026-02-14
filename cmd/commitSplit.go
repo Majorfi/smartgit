@@ -9,6 +9,24 @@ import (
 )
 
 func runSplit(dryRun bool) error {
+	hasParent, err := git.CommitHasParent("HEAD")
+	if err != nil {
+		return fmt.Errorf("failed to inspect HEAD ancestry: %w", err)
+	}
+	if !hasParent {
+		return fmt.Errorf("cannot split the root commit (HEAD has no parent)")
+	}
+
+	if !dryRun {
+		hasWorkingTreeChanges, err := git.HasWorkingTreeChanges()
+		if err != nil {
+			return fmt.Errorf("failed to inspect working tree state: %w", err)
+		}
+		if hasWorkingTreeChanges {
+			return fmt.Errorf("working tree is not clean; commit, stash, or discard local changes before using --split")
+		}
+	}
+
 	nameStatus, err := git.DiffTreeNameStatus("HEAD")
 	if err != nil {
 		return fmt.Errorf("failed to get file list from HEAD: %w", err)
@@ -81,9 +99,13 @@ func runSplit(dryRun bool) error {
 
 done:
 	hasStagedLeftover, _ := git.HasStagedChanges()
-	if hasStagedLeftover {
-		fmt.Println("Warning: some files remain staged but uncommitted.")
-		fmt.Println("You can commit them manually or run `sg commit`.")
+	hasUnstagedLeftover, _ := git.HasUnstagedChanges()
+	if hasStagedLeftover || hasUnstagedLeftover {
+		fmt.Println("Warning: some changes from the original commit remain uncommitted.")
+		if status, err := git.StatusShort(); err == nil && status != "" {
+			fmt.Println(status)
+		}
+		fmt.Println("You can finish committing them manually or run `sg commit`.")
 		fmt.Println()
 	}
 
