@@ -12,9 +12,10 @@ var version = "dev"
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "sg",
-		Short: "SmartGit — AI-powered git workflow CLI",
-		Long:  "SmartGit augments your git workflow with AI-generated commit messages, branch names, and PR descriptions.",
+		Use:          "sg",
+		Short:        "SmartGit — AI-powered git workflow CLI",
+		Long:         "SmartGit augments your git workflow with AI-generated commit messages, branch names, and PR descriptions.",
+		SilenceUsage: true,
 	}
 
 	rootCmd.Version = version
