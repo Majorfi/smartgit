@@ -97,8 +97,8 @@ func callClaude[T any](prompt string, schema string) (*T, error) {
 		"--json-schema", schema,
 		"--model", "haiku",
 		"--no-session-persistence",
-		prompt,
 	)
+	cmd.Stdin = strings.NewReader(prompt)
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -206,6 +206,40 @@ func buildPRPrompt(branchDesc, commitLog, diffStat, dirStat, shortlog string) st
 		b.WriteString(shortlog)
 		b.WriteString("\n```\n\n")
 	}
+
+	return b.String()
+}
+
+func GenerateSplitGroups(nameStatus string, diffStat string, context string) (*CommitSuggestion, error) {
+	prompt := buildSplitPrompt(nameStatus, diffStat, context)
+	return callClaude[CommitSuggestion](prompt, commitSchema)
+}
+
+func buildSplitPrompt(nameStatus string, diffStat string, context string) string {
+	var b strings.Builder
+	b.WriteString("You are a commit splitter. Given a list of files from a single large commit, group them into logical commits by concern.\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Group files that belong to the same feature, module, or concern\n")
+	b.WriteString("- Each group should be a coherent, self-contained change\n")
+	b.WriteString("- Write commit subjects in conventional commit format (e.g. feat(auth): add login flow)\n")
+	b.WriteString("- The body should explain WHY the change was made\n")
+	b.WriteString("- Keep subjects under 72 characters\n")
+	b.WriteString("- Never credit AI in commit messages\n")
+	b.WriteString("- Every file must appear in exactly one group\n\n")
+
+	if context != "" {
+		b.WriteString("Branch context:\n")
+		b.WriteString(context)
+		b.WriteString("\n\n")
+	}
+
+	b.WriteString("Changed files:\n```\n")
+	b.WriteString(nameStatus)
+	b.WriteString("\n```\n\n")
+
+	b.WriteString("Diff stats:\n```\n")
+	b.WriteString(diffStat)
+	b.WriteString("\n```")
 
 	return b.String()
 }
