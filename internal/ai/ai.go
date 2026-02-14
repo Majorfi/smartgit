@@ -25,6 +25,30 @@ type BranchInfo struct {
 	Plan        []string `json:"plan"`
 }
 
+type PRDescription struct {
+	Title           string `json:"title"`
+	Summary         string `json:"summary"`
+	WhatChanged     string `json:"whatChanged"`
+	Risks           string `json:"risks"`
+	TestPlan        string `json:"testPlan"`
+	DocsImpact      string `json:"docsImpact"`
+	BreakingChanges string `json:"breakingChanges"`
+}
+
+var prSchema = `{
+	"type": "object",
+	"properties": {
+		"title": { "type": "string" },
+		"summary": { "type": "string" },
+		"whatChanged": { "type": "string" },
+		"risks": { "type": "string" },
+		"testPlan": { "type": "string" },
+		"docsImpact": { "type": "string" },
+		"breakingChanges": { "type": "string" }
+	},
+	"required": ["title", "summary", "whatChanged", "risks", "testPlan", "docsImpact", "breakingChanges"]
+}`
+
 var commitSchema = `{
 	"type": "object",
 	"properties": {
@@ -126,6 +150,57 @@ func buildCommitPrompt(diff string, context string) string {
 	b.WriteString("Git diff:\n```\n")
 	b.WriteString(diff)
 	b.WriteString("\n```")
+
+	return b.String()
+}
+
+func GeneratePRDescription(branchDesc, commitLog, diffStat, dirStat, shortlog string) (*PRDescription, error) {
+	prompt := buildPRPrompt(branchDesc, commitLog, diffStat, dirStat, shortlog)
+	return callClaude[PRDescription](prompt, prSchema)
+}
+
+func buildPRPrompt(branchDesc, commitLog, diffStat, dirStat, shortlog string) string {
+	var b strings.Builder
+	b.WriteString("You are a pull request description generator. Analyze the following branch information and produce a structured PR description.\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Title should be concise (under 72 chars), in imperative mood\n")
+	b.WriteString("- Summary should be 1-3 sentences explaining the purpose\n")
+	b.WriteString("- WhatChanged should list the key changes made\n")
+	b.WriteString("- Risks should identify potential issues or areas to watch\n")
+	b.WriteString("- TestPlan should suggest how to verify the changes\n")
+	b.WriteString("- DocsImpact should note any documentation that needs updating, or 'None' if not applicable\n")
+	b.WriteString("- BreakingChanges should list any breaking changes, or 'None' if not applicable\n")
+	b.WriteString("- Never credit AI in the output\n\n")
+
+	if branchDesc != "" {
+		b.WriteString("Branch description:\n")
+		b.WriteString(branchDesc)
+		b.WriteString("\n\n")
+	}
+
+	if commitLog != "" {
+		b.WriteString("Commit log:\n```\n")
+		b.WriteString(commitLog)
+		b.WriteString("\n```\n\n")
+	}
+
+	if diffStat != "" {
+		b.WriteString("Diff stats:\n```\n")
+		b.WriteString(diffStat)
+		b.WriteString("\n```\n\n")
+	}
+
+	if dirStat != "" {
+		b.WriteString("Directory impact:\n```\n")
+		b.WriteString(dirStat)
+		b.WriteString("\n```\n\n")
+	}
+
+	if shortlog != "" {
+		b.WriteString("Change type breakdown:\n```\n")
+		b.WriteString(shortlog)
+		b.WriteString("\n```\n\n")
+	}
 
 	return b.String()
 }

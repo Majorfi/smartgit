@@ -124,6 +124,18 @@ func LogWithTrailers(since string) (string, error) {
 	return Run("log", "--format=%h %s%n%(trailers:key=Change-Type,key=Scope,key=Ticket,separator=%x2C )", fmt.Sprintf("%s..HEAD", since))
 }
 
+func DiffStatRange(base string) (string, error) {
+	return Run("diff", "--stat", fmt.Sprintf("%s..HEAD", base))
+}
+
+func DiffDirstat(base string) (string, error) {
+	return Run("diff", "--dirstat", fmt.Sprintf("%s..HEAD", base))
+}
+
+func Shortlog(base string) (string, error) {
+	return Run("shortlog", "--group=trailer:Change-Type", fmt.Sprintf("%s..HEAD", base))
+}
+
 func SetConfig(key string, value string) error {
 	_, err := Run("config", key, value)
 	return err

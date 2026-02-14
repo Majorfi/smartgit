@@ -24,6 +24,8 @@ func main() {
 	rootCmd.AddCommand(cmd.NewStartCmd())
 	rootCmd.AddCommand(cmd.NewStatusCmd())
 	rootCmd.AddCommand(cmd.NewInitCmd())
+	rootCmd.AddCommand(cmd.NewPRCmd())
+	rootCmd.AddCommand(cmd.NewDoctorCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
