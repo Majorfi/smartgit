@@ -26,6 +26,7 @@ func main() {
 	rootCmd.AddCommand(cmd.NewInitCmd())
 	rootCmd.AddCommand(cmd.NewPRCmd())
 	rootCmd.AddCommand(cmd.NewDoctorCmd())
+	rootCmd.AddCommand(cmd.NewInstallCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
