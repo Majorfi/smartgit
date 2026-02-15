@@ -26,10 +26,11 @@ func NewCommitCmd() *cobra.Command {
 The AI proposes one or more commit groups (by concern: backend/api/tests/docs).
 For each group, you review and approve the suggested commit message and trailers.
 
-Use --split to retroactively split the HEAD commit into smaller, AI-grouped commits.`,
+Use --split to group staged changes using only file names and diff stats (no full diff),
+useful when the diff is too large for the normal AI analysis.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagSplit {
-				return runSplit(flagDryRun)
+				return runSplit(flagAll, flagDryRun)
 			}
 			return runCommit(flagAll, flagDryRun, flagNoSplit)
 		},
@@ -38,7 +39,7 @@ Use --split to retroactively split the HEAD commit into smaller, AI-grouped comm
 	commitCmd.Flags().BoolVarP(&flagAll, "all", "a", false, "Include unstaged changes")
 	commitCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "Preview without executing any commits")
 	commitCmd.Flags().BoolVar(&flagNoSplit, "no-split", false, "Force a single commit for all changes")
-	commitCmd.Flags().BoolVar(&flagSplit, "split", false, "Split HEAD commit into smaller AI-grouped commits")
+	commitCmd.Flags().BoolVar(&flagSplit, "split", false, "Group staged changes using file names and stats only (for large diffs)")
 
 	return commitCmd
 }
