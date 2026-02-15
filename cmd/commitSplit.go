@@ -8,43 +8,36 @@ import (
 	"github.com/Majorfi/smartgit/internal/git"
 )
 
-func runSplit(dryRun bool) error {
-	hasParent, err := git.CommitHasParent("HEAD")
-	if err != nil {
-		return fmt.Errorf("failed to inspect HEAD ancestry: %w", err)
-	}
-	if !hasParent {
-		return fmt.Errorf("cannot split the root commit (HEAD has no parent)")
-	}
-
-	if !dryRun {
-		hasUnstaged, err := git.HasUnstagedChanges()
-		if err != nil {
-			return fmt.Errorf("failed to inspect working tree state: %w", err)
-		}
-		if hasUnstaged {
-			return fmt.Errorf("you have unstaged changes; commit, stash, or discard them before using --split")
+func runSplit(all bool, dryRun bool) error {
+	if all {
+		if err := git.AddAll(); err != nil {
+			return fmt.Errorf("failed to stage changes: %w", err)
 		}
 	}
 
-	nameStatus, err := git.DiffTreeNameStatus("HEAD")
+	hasStagedChanges, err := git.HasStagedChanges()
 	if err != nil {
-		return fmt.Errorf("failed to get file list from HEAD: %w", err)
+		return fmt.Errorf("failed to check staged changes: %w", err)
 	}
-	if strings.TrimSpace(nameStatus) == "" {
-		fmt.Println("HEAD commit has no file changes.")
+	if !hasStagedChanges {
+		fmt.Println("No staged changes. Stage files first or use --all.")
 		return nil
 	}
 
-	diffStat, err := git.DiffStatOfCommit("HEAD")
+	nameStatus, err := git.DiffNameStatus(true)
 	if err != nil {
-		return fmt.Errorf("failed to get diff stats from HEAD: %w", err)
+		return fmt.Errorf("failed to get staged file list: %w", err)
+	}
+
+	diffStat, err := git.DiffStat(true)
+	if err != nil {
+		return fmt.Errorf("failed to get staged diff stats: %w", err)
 	}
 
 	context := gatherSplitContext()
 
 	fileCount := len(strings.Split(strings.TrimSpace(nameStatus), "\n"))
-	fmt.Printf("Analyzing %d files from HEAD commit...\n\n", fileCount)
+	fmt.Printf("Analyzing %d staged files...\n\n", fileCount)
 
 	suggestion, err := ai.GenerateSplitGroups(nameStatus, diffStat, context)
 	if err != nil {
@@ -67,11 +60,15 @@ func runSplit(dryRun bool) error {
 		return nil
 	}
 
-	if err := git.SoftReset("HEAD~1"); err != nil {
-		return fmt.Errorf("failed to soft reset HEAD: %w", err)
+	stashed := false
+	hasUnstaged, _ := git.HasUnstagedChanges()
+	if hasUnstaged {
+		created, err := git.StashKeepIndex()
+		if err != nil {
+			return fmt.Errorf("failed to stash unstaged changes: %w", err)
+		}
+		stashed = created
 	}
-	fmt.Println("Soft-reset HEAD. All changes are now staged.")
-	fmt.Println()
 
 	committed := 0
 	for i, group := range suggestion.Groups {
@@ -98,6 +95,13 @@ func runSplit(dryRun bool) error {
 	}
 
 done:
+	if stashed {
+		if err := git.StashPop(); err != nil {
+			fmt.Printf("Warning: failed to restore unstaged changes: %v\n", err)
+			fmt.Println("Your changes are saved in git stash.")
+		}
+	}
+
 	hasStagedLeftover, _ := git.HasStagedChanges()
 	hasUnstagedLeftover, _ := git.HasUnstagedChanges()
 	if hasStagedLeftover || hasUnstagedLeftover {
