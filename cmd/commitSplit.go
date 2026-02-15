@@ -18,12 +18,12 @@ func runSplit(dryRun bool) error {
 	}
 
 	if !dryRun {
-		hasWorkingTreeChanges, err := git.HasWorkingTreeChanges()
+		hasUnstaged, err := git.HasUnstagedChanges()
 		if err != nil {
 			return fmt.Errorf("failed to inspect working tree state: %w", err)
 		}
-		if hasWorkingTreeChanges {
-			return fmt.Errorf("working tree is not clean; commit, stash, or discard local changes before using --split")
+		if hasUnstaged {
+			return fmt.Errorf("you have unstaged changes; commit, stash, or discard them before using --split")
 		}
 	}
 
