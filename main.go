@@ -8,7 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "dev"
+var (
+	version = "dev"
+	date    = "unknown"
+)
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -19,7 +22,7 @@ func main() {
 	}
 
 	rootCmd.Version = version
-	rootCmd.SetVersionTemplate(fmt.Sprintf("sg version %s\n", version))
+	rootCmd.SetVersionTemplate(fmt.Sprintf("sg version %s (built %s)\n", version, date))
 
 	rootCmd.AddCommand(cmd.NewCommitCmd())
 	rootCmd.AddCommand(cmd.NewStartCmd())
