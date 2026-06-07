@@ -3,11 +3,16 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+// ErrTimeout is returned when the claude CLI exceeds its deadline, letting
+// callers fall back to a lighter strategy (e.g. split) instead of failing.
+var ErrTimeout = errors.New("claude CLI timed out")
 
 type CommitGroup struct {
 	Files      []string `json:"files"`
@@ -91,39 +96,67 @@ func callClaude[T any](prompt string, schema string) (*T, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	// The CLI's --json-schema (structured output) flag hangs with haiku, so we
+	// ask for JSON in the prompt and parse the result string ourselves.
+	fullPrompt := prompt + "\n\nRespond with ONLY a JSON object matching this schema. No markdown fences, no prose:\n" + schema
+
 	cmd := exec.CommandContext(ctx, claudeBin,
 		"--print",
 		"--output-format", "json",
-		"--json-schema", schema,
 		"--model", "haiku",
 		"--no-session-persistence",
+		"--strict-mcp-config",
 	)
-	cmd.Stdin = strings.NewReader(prompt)
+	cmd.Stdin = strings.NewReader(fullPrompt)
 
 	out, err := cmd.Output()
+
+	// claude --output-format json prints its payload (including API errors) to
+	// stdout and exits non-zero, leaving stderr empty. Parse stdout before the
+	// process error so the real message surfaces instead of a blank one.
+	var response struct {
+		IsError bool   `json:"is_error"`
+		Result  string `json:"result"`
+	}
+	parseErr := json.Unmarshal(out, &response)
+
+	if parseErr == nil && response.IsError {
+		return nil, fmt.Errorf("claude returned error: %s", response.Result)
+	}
+
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("claude CLI timed out after 2m (diff may be too large): %w", ErrTimeout)
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("claude CLI error: %s", string(exitErr.Stderr))
+			stderr := strings.TrimSpace(string(exitErr.Stderr))
+			if stderr != "" {
+				return nil, fmt.Errorf("claude CLI error: %s", stderr)
+			}
+			return nil, fmt.Errorf("claude CLI exited with code %d and no output", exitErr.ExitCode())
 		}
 		return nil, fmt.Errorf("claude CLI error: %w", err)
 	}
 
-	var response struct {
-		StructuredOutput *T   `json:"structured_output"`
-		IsError          bool `json:"is_error"`
-		Result           string `json:"result"`
-	}
-	if err := json.Unmarshal(out, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse claude response: %w", err)
-	}
-	if response.IsError {
-		return nil, fmt.Errorf("claude returned error: %s", response.Result)
-	}
-	if response.StructuredOutput == nil {
-		return nil, fmt.Errorf("claude returned no structured output")
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse claude response: %w", parseErr)
 	}
 
-	return response.StructuredOutput, nil
+	return parseResultJSON[T](response.Result)
+}
+
+func parseResultJSON[T any](result string) (*T, error) {
+	start := strings.Index(result, "{")
+	end := strings.LastIndex(result, "}")
+	if start < 0 || end <= start {
+		return nil, fmt.Errorf("no JSON object in claude response: %q", result)
+	}
+
+	var v T
+	if err := json.Unmarshal([]byte(result[start:end+1]), &v); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON from claude response: %w", err)
+	}
+	return &v, nil
 }
 
 func GenerateCommitMessage(diff string, context string) (*CommitSuggestion, error) {

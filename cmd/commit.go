@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -84,6 +85,11 @@ func runCommit(all bool, dryRun bool, noSplit bool) error {
 	fmt.Println()
 
 	suggestion, err := ai.GenerateCommitMessage(diff, context)
+	if errors.Is(err, ai.ErrTimeout) {
+		fmt.Println("Full-diff analysis timed out — falling back to file-level grouping...")
+		fmt.Println()
+		return runSplit(false, dryRun)
+	}
 	if err != nil {
 		return fmt.Errorf("AI generation failed: %w", err)
 	}
