@@ -24,7 +24,7 @@ AI-powered git workflow CLI that maintains traceability from intent to pull requ
 go install github.com/Majorfi/smartgit@latest
 ```
 
-Or build from source:
+Build from source:
 
 ```bash
 git clone https://github.com/Majorfi/smartgit.git
